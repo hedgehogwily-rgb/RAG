@@ -1,0 +1,8 @@
+Оценка качества RAG: faithfulness (ответ соответствует контексту),
+relevance (найденные чанки релевантны вопросу), answer correctness.
+
+
+Метрики: RAGAS, human evaluation, A/B тесты на реальных запросах.
+
+
+Регулярная оценка помогает улучшать chunking, retrieval и промпты.
