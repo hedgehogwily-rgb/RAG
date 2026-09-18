@@ -4,6 +4,7 @@ from pathlib import Path
 from src.chunker import CHUNK_SIZE, OVERLAP, chunk_documents
 from src.document_loader import load_documents
 from src.embeddings import EMBEDDING_DIM, EMBEDDING_MODEL
+from src.retriever import DEFAULT_TOP_K, retrieve, retrieve_hybrid
 from src.weaviate_store import (
     connect,
     count_objects,
@@ -17,6 +18,40 @@ LONG_DOC_NAME = "rag_pipeline_long.txt"
 OVERLAP_PREVIEW = 40
 SAMPLE_LIMIT = 3
 TEXT_PREVIEW = 120
+HIT_PREVIEW = 160
+
+TEST_QUERIES = [
+    "Что такое RAG и зачем нужна внешняя база знаний?",
+    "Зачем нужен overlap при разбиении текста на чанки?",
+    "Чем embeddings отличаются от обычного ключевого поиска?",
+    "Для чего используют векторные базы данных вроде Weaviate?",
+    "Как оценивать качество retrieval в RAG-системе?",
+]
+
+HYBRID_COMPARE_QUERIES = [
+    "Что такое RAG и зачем нужна внешняя база знаний?",
+    "Зачем нужен overlap при разбиении текста на чанки?",
+]
+
+
+def _log_hits(hits: list[dict], label: str) -> None:
+    logger.info("--- %s ---", label)
+    for rank, hit in enumerate(hits, start=1):
+        text = hit.get("text") or ""
+        preview = text if len(text) <= HIT_PREVIEW else text[:HIT_PREVIEW] + "..."
+        score = hit.get("score")
+        distance = hit.get("distance")
+        score_s = f"{score:.4f}" if score is not None else "n/a"
+        dist_s = f"{distance:.4f}" if distance is not None else "n/a"
+        logger.info(
+            "  #%d score=%s dist=%s | %s | chunk_id=%s",
+            rank,
+            score_s,
+            dist_s,
+            hit.get("source_name"),
+            hit.get("chunk_id"),
+        )
+        logger.info("  %s", preview)
 
 
 def main() -> None:
@@ -113,10 +148,25 @@ def main() -> None:
             logger.info("%s", preview)
             logger.info("-" * 60)
 
-        logger.info(
-            "Re-run main.py to verify idempotent reload (object count must stay %d).",
-            total_in_db,
-        )
+        # --- Retrieval: semantic search ---
+        logger.info("")
+        logger.info("=== Semantic retrieval (top_k=%d) ===", DEFAULT_TOP_K)
+        for query in TEST_QUERIES:
+            logger.info("")
+            logger.info("=== Query: %s ===", query)
+            hits = retrieve(client, query, top_k=DEFAULT_TOP_K)
+            _log_hits(hits, "semantic")
+
+        # --- Hybrid vs semantic (короткое сравнение) ---
+        logger.info("")
+        logger.info("=== Hybrid vs semantic comparison ===")
+        for query in HYBRID_COMPARE_QUERIES:
+            logger.info("")
+            logger.info("=== Compare query: %s ===", query)
+            semantic_hits = retrieve(client, query, top_k=DEFAULT_TOP_K)
+            hybrid_hits = retrieve_hybrid(client, query, top_k=DEFAULT_TOP_K)
+            _log_hits(semantic_hits, "semantic")
+            _log_hits(hybrid_hits, "hybrid alpha=0.5")
     finally:
         client.close()
 
