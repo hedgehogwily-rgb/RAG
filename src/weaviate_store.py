@@ -48,28 +48,40 @@ def chunk_uuid(chunk: Chunk) -> str:
 
 def upsert_chunks(client: weaviate.WeaviateClient, chunks: list[Chunk]) -> int:
     collection = ensure_collection(client)
-    vectors = embed_texts([chunk.text for chunk in chunks])
+    desired_ids = {chunk_uuid(chunk) for chunk in chunks}
 
-    for chunk, vector in zip(chunks, vectors, strict=True):
-        properties = {
-            "document_id": chunk.document_id,
-            "source_name": chunk.source_name,
-            "chunk_id": chunk.chunk_id,
-            "text": chunk.text,
-        }
-        object_id = chunk_uuid(chunk)
-        if collection.data.exists(object_id):
-            collection.data.replace(
-                uuid=object_id,
-                properties=properties,
-                vector=vector,
-            )
-        else:
-            collection.data.insert(
-                properties=properties,
-                uuid=object_id,
-                vector=vector,
-            )
+    if chunks:
+        vectors = embed_texts([chunk.text for chunk in chunks])
+        for chunk, vector in zip(chunks, vectors, strict=True):
+            properties = {
+                "document_id": chunk.document_id,
+                "source_name": chunk.source_name,
+                "chunk_id": chunk.chunk_id,
+                "text": chunk.text,
+            }
+            object_id = chunk_uuid(chunk)
+            if collection.data.exists(object_id):
+                collection.data.replace(
+                    uuid=object_id,
+                    properties=properties,
+                    vector=vector,
+                )
+            else:
+                collection.data.insert(
+                    properties=properties,
+                    uuid=object_id,
+                    vector=vector,
+                )
+
+    stale_ids = [
+        str(obj.uuid)
+        for obj in collection.iterator(return_properties=[])
+        if str(obj.uuid) not in desired_ids
+    ]
+    for object_id in stale_ids:
+        collection.data.delete_by_id(object_id)
+    if stale_ids:
+        logger.info("Removed %d stale chunk(s) from Weaviate", len(stale_ids))
 
     return len(chunks)
 
