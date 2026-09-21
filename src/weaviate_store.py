@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "KnowledgeChunk"
 WEAVIATE_HOST = "localhost"
-WEAVIATE_PORT = 8081
-WEAVIATE_GRPC_PORT = 50052
+WEAVIATE_PORT = 8080
+WEAVIATE_GRPC_PORT = 50051
 
 
 def connect() -> weaviate.WeaviateClient:
