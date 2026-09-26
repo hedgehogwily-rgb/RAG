@@ -11,6 +11,7 @@ from src.weaviate_store import (
     fetch_sample,
     upsert_chunks,
 )
+from src.generator import answer_question
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,11 @@ TEST_QUERIES = [
 HYBRID_COMPARE_QUERIES = [
     "Что такое RAG и зачем нужна внешняя база знаний?",
     "Зачем нужен overlap при разбиении текста на чанки?",
+]
+
+GENERATION_QUERIES = [
+    *TEST_QUERIES,
+    "Какая столица Франции?",
 ]
 
 
@@ -167,6 +173,18 @@ def main() -> None:
             hybrid_hits = retrieve_hybrid(client, query, top_k=DEFAULT_TOP_K)
             _log_hits(semantic_hits, "semantic")
             _log_hits(hybrid_hits, "hybrid alpha=0.5")
+        
+        logger.info("")
+        logger.info("=== Generation: with retrieval vs without ===")
+        for query in GENERATION_QUERIES:
+            logger.info("")
+            logger.info("=== Query: %s ===", query)
+            result = answer_question(client, query)
+            logger.info("sources: %s", ", ".join(result["sources"]) or "(none)")
+            logger.info("--- without retrieval ---")
+            logger.info("%s", result["without_retrieval"])
+            logger.info("--- with retrieval ---")
+            logger.info("%s", result["with_retrieval"])
     finally:
         client.close()
 
