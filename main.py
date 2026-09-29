@@ -11,7 +11,7 @@ from src.weaviate_store import (
     fetch_sample,
     upsert_chunks,
 )
-from src.generator import answer_question
+from src.generator import MIN_SCORE, TOP_K, answer_question
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,17 @@ HYBRID_COMPARE_QUERIES = [
     "Зачем нужен overlap при разбиении текста на чанки?",
 ]
 
-GENERATION_QUERIES = [
-    *TEST_QUERIES,
+GOOD_QUERIES = list(TEST_QUERIES)
+
+BAD_QUERIES = [
     "Какая столица Франции?",
+    "Сколько будет 17 умножить на 23?",
+    "Кто написал «Войну и мир»?",
+]
+
+GENERATION_QUERIES = [
+    *[(query, "good") for query in GOOD_QUERIES],
+    *[(query, "bad") for query in BAD_QUERIES],
 ]
 
 
@@ -176,9 +184,20 @@ def main() -> None:
         
         logger.info("")
         logger.info("=== Generation: with retrieval vs without ===")
-        for query in GENERATION_QUERIES:
+        logger.info(
+            "Settings: chunk_size=%d overlap=%d top_k=%d min_score=%.2f. "
+            "Vector search with top_k=%d is enough for this base: "
+            "the 4th–5th chunks are usually noise. Hybrid only reorders "
+            "the same files and is not used for the answer.",
+            CHUNK_SIZE,
+            OVERLAP,
+            TOP_K,
+            MIN_SCORE,
+            TOP_K,
+        )
+        for query, kind in GENERATION_QUERIES:
             logger.info("")
-            logger.info("=== Query: %s ===", query)
+            logger.info("=== Query (%s): %s ===", kind, query)
             result = answer_question(client, query)
             logger.info("sources: %s", ", ".join(result["sources"]) or "(none)")
             logger.info("--- without retrieval ---")
