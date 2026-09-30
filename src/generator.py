@@ -114,10 +114,16 @@ def log_hit_quality(hits: list[dict]) -> None:
         )
 
 
-def answer_question(weaviate_client: weaviate.WeaviateClient, query: str) -> dict:
+def answer_question(
+    weaviate_client: weaviate.WeaviateClient,
+    query: str,
+    *,
+    include_baseline: bool = True,
+) -> dict:
     hits = retrieve(weaviate_client, query, top_k=TOP_K)
     best_score = hits[0].get("score") if hits else None
     log_hit_quality(hits)
+    baseline = answer_without_retrieval(query) if include_baseline else None
 
     if is_weak(hits):
         return {
@@ -126,7 +132,7 @@ def answer_question(weaviate_client: weaviate.WeaviateClient, query: str) -> dic
             "context": "",
             "weak_retrieval": True,
             "best_score": best_score,
-            "without_retrieval": answer_without_retrieval(query),
+            "without_retrieval": baseline,
             "with_retrieval": NO_ANSWER,
         }
 
@@ -134,12 +140,14 @@ def answer_question(weaviate_client: weaviate.WeaviateClient, query: str) -> dic
     context = format_context(strong)
     sources = [f"{hit['source_name']}#{hit['chunk_id']}" for hit in strong]
     with_retrieval = _with_sources(answer_with_retrieval(query, context), sources)
+    if with_retrieval == NO_ANSWER:
+        sources = []
     return {
         "query": query,
         "sources": sources,
         "context": context,
         "weak_retrieval": False,
         "best_score": best_score,
-        "without_retrieval": answer_without_retrieval(query),
+        "without_retrieval": baseline,
         "with_retrieval": with_retrieval,
     }

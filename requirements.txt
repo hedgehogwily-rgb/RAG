@@ -2,3 +2,5 @@ weaviate-client>=4
 sentence-transformers
 openai
 python-dotenv
+fastapi
+uvicorn
